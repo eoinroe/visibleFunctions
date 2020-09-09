@@ -55,7 +55,7 @@ private extension Renderer {
         
         let functions: [MTLFunction] = visibleFunctions.map({
             guard let function = library.makeFunction(name: $0) else {
-                fatalError("Couldn't create the visible function.")
+                fatalError("Couldn't create the visible function \($0).")
             }
             return function
         })

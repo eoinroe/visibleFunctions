@@ -12,6 +12,8 @@ class ViewController: NSViewController {
     @IBOutlet weak var metalView: MTKView!
     
     var renderer: Renderer?
+    
+    var keyIsDown: Bool = false
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -22,17 +24,37 @@ class ViewController: NSViewController {
         metalView.delegate = renderer
         metalView.framebufferOnly = false
         metalView.device = renderer?.metal.device
-        // metalView.colorPixelFormat = .rgba16Float
-    }
+        
+        NSEvent.addLocalMonitorForEvents(matching: .keyUp) { (aEvent) -> NSEvent? in
+            self.keyUp(with: aEvent)
+            return aEvent
+        }
 
-    override var representedObject: Any? {
-        didSet {
-        // Update the view, if already loaded.
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { (aEvent) -> NSEvent? in
+            self.keyDown(with: aEvent)
+            return aEvent
         }
     }
-    
-    
 
-
+    // Swift keycodes - https://gist.github.com/swillits/df648e87016772c7f7e5dbed2b345066
+    override func keyDown(with event: NSEvent) {
+        if keyIsDown == true {
+            return
+        } else {
+            keyIsDown = true
+        }
+       
+        if event.keyCode == 0x31 {
+            renderer?.index += 1
+            
+            if let count = renderer?.visibleFunctions.count {
+                renderer?.index %= UInt32(count)
+            }
+        }
+    }
+        
+    override func keyUp(with event: NSEvent) {
+        keyIsDown = false
+        
+    }
 }
-
