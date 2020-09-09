@@ -11,64 +11,19 @@ import MetalKit
 final class Renderer: NSObject {
     var metal: (device: MTLDevice, queue: MTLCommandQueue, library: MTLLibrary)
     
-    var pipeline: MTLComputePipelineState
+    var compute: (pipeline: MTLComputePipelineState, table: MTLVisibleFunctionTable)
     
-    var functionTable: MTLVisibleFunctionTable
+    var visibleFunctions: [String] = ["purple_gradient", "turquoise_gradient"]
     
     var index: UInt32 = 0
     
     init(view: MTKView) {
         self.metal = Renderer.setupMetal()
-        
-        /*
-        
-        guard let kernelFunction = metal.library.makeFunction(name: "visible"),
-              let computePipeline = try? metal.device.makeComputePipelineState(function: kernelFunction) else {
-            fatalError()
-        }
-        
-        self.pipeline = computePipeline
- 
-        */
-        
-        // Kernel function
-        let computeFunction = metal.library.makeFunction(name: "visible")!
-        
-        // Visible functions
-        let purpleGradient = metal.library.makeFunction(name: "purple_gradient")!
-        let turquoiseGradient = metal.library.makeFunction(name: "turquoise_gradient")!
-        
-        let linkedFunctions = MTLLinkedFunctions()
-        linkedFunctions.functions = [purpleGradient, turquoiseGradient]
-        
-        let descriptor = MTLComputePipelineDescriptor()
-        descriptor.computeFunction = computeFunction
-        descriptor.linkedFunctions = linkedFunctions
+        self.compute = Renderer.setupComputePipeline(device: metal.device, library: metal.library, kernelFunction: "visible", visibleFunctions: visibleFunctions)
         
         // Sometimes you know a throwing function or method won’t, in fact, throw an error at runtime.
         // On those occasions, you can write try! before the expression to disable error propagation.
-        self.pipeline = try! metal.device.makeComputePipelineState(descriptor: descriptor, options: [], reflection: nil)
-        
-        /*
-            
-        do {
-            self.pipeline = try metal.device.makeComputePipelineState(descriptor: descriptor, options: [], reflection: nil)
-        } catch {
-            print(error.localizedDescription)
-        }
- 
-        */
-        
-        let vftDescriptor = MTLVisibleFunctionTableDescriptor()
-        vftDescriptor.functionCount = 2
-        
-        self.functionTable = self.pipeline.makeVisibleFunctionTable(descriptor: vftDescriptor)!
-        
-        var functionHandle = self.pipeline.functionHandle(function: purpleGradient)!
-        functionTable.setFunction(functionHandle, index: 0)
-        
-        functionHandle = self.pipeline.functionHandle(function: turquoiseGradient)!
-        functionTable.setFunction(functionHandle, index: 1)
+        // self.pipeline = try! metal.device.makeComputePipelineState(descriptor: descriptor, options: [], reflection: nil)
  
         super.init()
     }
@@ -149,15 +104,15 @@ extension Renderer: MTKViewDelegate {
         }
         
         let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
-        computeEncoder.setComputePipelineState(pipeline)
+        computeEncoder.setComputePipelineState(compute.pipeline)
         
         computeEncoder.setBytes(&index, length: MemoryLayout<UInt32>.stride, index: 0)
-        computeEncoder.setVisibleFunctionTable(functionTable, bufferIndex: 1)
+        computeEncoder.setVisibleFunctionTable(compute.table, bufferIndex: 1)
         computeEncoder.setTexture(drawable.texture, index: 0)
         
         // https://developer.apple.com/documentation/metal/calculating_threadgroup_and_grid_sizes
-        let w = pipeline.threadExecutionWidth
-        let h = pipeline.maxTotalThreadsPerThreadgroup / w
+        let w = compute.pipeline.threadExecutionWidth
+        let h = compute.pipeline.maxTotalThreadsPerThreadgroup / w
         let threadsPerThreadgroup = MTLSizeMake(w, h, 1)
         
         let threadsPerGrid = MTLSize(width: drawable.texture.width,
