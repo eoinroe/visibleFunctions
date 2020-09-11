@@ -47,8 +47,8 @@ class ViewController: NSViewController {
         if event.keyCode == 0x31 {
             renderer?.index += 1
             
-            if let count = renderer?.visibleFunctions.count {
-                renderer?.index %= UInt32(count)
+            if let count = renderer?.functions["gradients"]?.count {
+                 renderer?.index %= UInt32(count)
             }
         }
     }
