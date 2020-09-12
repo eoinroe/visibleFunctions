@@ -21,8 +21,6 @@ final class Renderer: NSObject {
     
     var index: UInt32 = 0
     
-    var count: Int = 0
-    
     init(view: MTKView) {
         self.metal = Renderer.setupMetal()
         
@@ -130,7 +128,6 @@ extension Renderer: MTKViewDelegate {
     }
     
     func draw(in view: MTKView) {
-        
         guard let drawable = view.currentDrawable,
               let commandBuffer = metal.queue.makeCommandBuffer() else {
             return
