@@ -34,7 +34,6 @@ float test(float r, unsigned int depth)
     }
     
     return 0.5 * test(r, depth - 1);
-    // return 0.5;
 }
 
 using GradientFunction = float4(float2);
