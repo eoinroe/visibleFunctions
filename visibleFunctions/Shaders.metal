@@ -42,7 +42,7 @@ using RecursiveFunction = float(float, unsigned int);
 
 kernel void visible(constant unsigned int &index [[buffer(0)]],
                     visible_function_table<GradientFunction> gradient_functions [[buffer(1)]],
-                    // visible_function_table<RecursiveFunction> recursive_functions [[buffer(2)]],
+                    visible_function_table<RecursiveFunction> recursive_functions [[buffer(2)]],
                     texture2d<float, access::write> tex0,
                     uint2 tid [[thread_position_in_grid]])
 {

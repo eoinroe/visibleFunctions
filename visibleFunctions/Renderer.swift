@@ -17,11 +17,11 @@ final class Renderer: NSObject {
         
     var computePipelineState: MTLComputePipelineState
     
-    var visibleFunctionTable: MTLVisibleFunctionTable
-    
-    var functionTable: MTLVisibleFunctionTable
+    var functionTables = [String: MTLVisibleFunctionTable]()
     
     var index: UInt32 = 0
+    
+    var count: Int = 0
     
     init(view: MTKView) {
         self.metal = Renderer.setupMetal()
@@ -34,9 +34,10 @@ final class Renderer: NSObject {
         }
         
         self.computePipelineState = Renderer.setupComputePipeline(device: metal.device, library: metal.library, kernelFunction: "visible", functionGroups: functions)
-        self.visibleFunctionTable = Renderer.setupFunctionTable(library: metal.library, pipeline: computePipelineState, functions: functions["gradients"]!)
         
-        self.functionTable = Renderer.setupFunctionTable(library: metal.library, pipeline: computePipelineState, functions: functions["test"]!)
+        for group in functions.keys {
+            functionTables[group] = Renderer.setupFunctionTable(library: metal.library, pipeline: computePipelineState, functions: functions[group]!)
+        }
  
         super.init()
     }
@@ -135,14 +136,23 @@ extension Renderer: MTKViewDelegate {
             return
         }
         
-        print(index)
+        count += 1
+        
+        print(count)
+        print(count % 60)
+        
+        if count % 2 == 0 {
+            index += 1
+            index %= UInt32(functions["gradients"]!.count)
+        }
+        
         
         let computeEncoder = commandBuffer.makeComputeCommandEncoder()!
         computeEncoder.setComputePipelineState(computePipelineState)
         
         computeEncoder.setBytes(&index, length: MemoryLayout<UInt32>.stride, index: 0)
-        computeEncoder.setVisibleFunctionTable(visibleFunctionTable, bufferIndex: 1)
-        // computeEncoder.setVisibleFunctionTable(functionTable, bufferIndex: 2)
+        computeEncoder.setVisibleFunctionTable(functionTables["gradients"], bufferIndex: 1)
+        computeEncoder.setVisibleFunctionTable(functionTables["recursive"], bufferIndex: 2)
         computeEncoder.setTexture(drawable.texture, index: 0)
         
         // https://developer.apple.com/documentation/metal/calculating_threadgroup_and_grid_sizes
