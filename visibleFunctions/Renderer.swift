@@ -21,6 +21,11 @@ final class Renderer: NSObject {
     
     var index: UInt32 = 0
     
+    var colors: MTLBuffer
+    
+    var resources = [MTLResource]()
+    var resourceBuffer: MTLBuffer
+    
     init(view: MTKView) {
         self.metal = Renderer.setupMetal()
         
@@ -37,6 +42,51 @@ final class Renderer: NSObject {
             functionTables[group] = Renderer.setupFunctionTable(library: metal.library, pipeline: computePipelineState, functions: functions[group]!)
         }
  
+        self.colors = Renderer.setupBuffer(device: metal.device)
+            
+        /*
+        
+            - (NSArray <id <MTLResource>> *)resources {
+                // The sphere intersection function uses the sphere origins and radii to check for
+                // intersection with rays
+                return @[ _sphereBuffer ];
+            }
+ 
+        */
+        
+        // var resources = [MTLResource]()
+        resources.append(colors)
+        
+        let encoder: MTLArgumentEncoder = Renderer.newArgumentEncoderForResources(device: metal.device, resources: resources)
+        let resourcesStride = encoder.encodedLength
+        
+        resourceBuffer = metal.device.makeBuffer(length: resourcesStride, options: .storageModeManaged)!
+        
+        // Bind the argument encoder to the resource buffer at this geometry's offset.
+        encoder.setArgumentBuffer(resourceBuffer, offset: 0)
+        
+        // Encode the arguments into the resource buffer.
+        for argumentIndex in 0..<resources.count {
+            let resource = resources[argumentIndex]
+            
+            if resource.conforms(to: MTLBuffer.self) {
+                // encoder.setBuffer(resource, offset: 0, index: argumentIndex)
+                encoder.setBuffer((resource as! MTLBuffer), offset: 0, index: argumentIndex)
+            }
+        }
+        
+        print(resourceBuffer.length)
+        print(colors.length)
+        
+        // #if !TARGET_OS_IPHONE
+        resourceBuffer.didModifyRange(0..<resourceBuffer.length)
+        
+        let buffer = resources[0] as! MTLBuffer
+        
+        let data = buffer.contents().assumingMemoryBound(to: SIMD3<Float>.self)
+        
+        print(data[0])
+        
         super.init()
     }
 }
@@ -112,13 +162,58 @@ private extension Renderer {
         }
             
         for index in 0..<functions.count {
-            print(index)
-            
             let functionHandle = pipeline.functionHandle(function: functions[index])
             functionTable.setFunction(functionHandle, index: index)
         }
         
         return functionTable
+    }
+    
+    static func setupBuffer(device: MTLDevice) -> MTLBuffer {
+        let buffer = device.makeBuffer(length: MemoryLayout<SIMD3<Float>>.stride * 3)!
+        
+        var colors = [SIMD3<Float>]()
+        
+        for _ in 0..<3 {
+            let r = Float.random(in: 0...1)
+            let g = Float.random(in: 0...1)
+            let b = Float.random(in: 0...1)
+            
+            let color = SIMD3<Float>(r, g, b)
+            
+            colors.append(color)
+        }
+        
+        buffer.contents().copyMemory(from: colors, byteCount: buffer.length)
+        return buffer
+    }
+    
+    static func newArgumentEncoderForResources(device: MTLDevice, resources: [MTLResource]) -> MTLArgumentEncoder {
+        var arguments = [MTLArgumentDescriptor]()
+        
+        for resource in resources {
+            let argumentDescriptor = MTLArgumentDescriptor()
+            argumentDescriptor.index = arguments.count
+            argumentDescriptor.access = .readOnly
+            
+            if resource.conforms(to: MTLBuffer.self) {
+                argumentDescriptor.dataType = .pointer
+            } else if resource.conforms(to: MTLTexture.self) {
+                
+                // var texture = MTLTexture(resource)
+                
+                argumentDescriptor.dataType = .texture
+                // argumentDescriptor.textureType =
+            }
+            
+            arguments.append(argumentDescriptor)
+        }
+        
+        guard let encoder = device.makeArgumentEncoder(arguments: arguments) else {
+            fatalError("Couldn't create the argument encoder.")
+        }
+        
+        return encoder
     }
 }
 
@@ -139,7 +234,14 @@ extension Renderer: MTKViewDelegate {
         computeEncoder.setBytes(&index, length: MemoryLayout<UInt32>.stride, index: 0)
         computeEncoder.setVisibleFunctionTable(functionTables["gradients"], bufferIndex: 1)
         computeEncoder.setVisibleFunctionTable(functionTables["recursive"], bufferIndex: 2)
+        computeEncoder.setBuffer(resourceBuffer, offset: 0, index: 3)
+                
+        computeEncoder.setBuffer((resources[0] as! MTLBuffer), offset: 0, index: 4)
         computeEncoder.setTexture(drawable.texture, index: 0)
+        
+        for resource in resources {
+            computeEncoder.useResource(resource, usage: .read)
+        }
         
         // https://developer.apple.com/documentation/metal/calculating_threadgroup_and_grid_sizes
         let w = computePipelineState.threadExecutionWidth

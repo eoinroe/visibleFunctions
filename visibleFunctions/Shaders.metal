@@ -39,14 +39,25 @@ float test(float r, unsigned int depth)
 using GradientFunction = float4(float2);
 using RecursiveFunction = float(float, unsigned int);
 
+struct Colors {
+    device float3 *vertexColors;
+};
+
 kernel void visible(constant unsigned int &index [[buffer(0)]],
                     visible_function_table<GradientFunction> gradient_functions [[buffer(1)]],
                     visible_function_table<RecursiveFunction> recursive_functions [[buffer(2)]],
+                    device void *resources [[buffer(3)]],
+                    device float3 *cols [[buffer(4)]],
                     texture2d<float, access::write> tex0,
                     uint2 tid [[thread_position_in_grid]])
 {
-    float2 uv = (float2)tid / float2(tex0.get_width(), tex0.get_height());
-    tex0.write(gradient_functions[index](uv), tid);
+    device Colors & colors = *(device Colors *)((device char *)resources);
+    
+    float4 col = float4(colors.vertexColors[0], 1);
+    tex0.write(col, tid);
+    
+    // float2 uv = (float2)tid / float2(tex0.get_width(), tex0.get_height());
+    // tex0.write(gradient_functions[index](uv), tid);
     
     // Expecting dark gray color...
     // float r = recursive_functions[0](1.0f, 3);
